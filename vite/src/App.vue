@@ -25,7 +25,7 @@ export default {
 </script>
 
 <style scoped>
-div {
+h1 {
   color: red;
 }
 </style>

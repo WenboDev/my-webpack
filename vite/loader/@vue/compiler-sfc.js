@@ -1,43 +1,45 @@
-/*
- * @Author: wenbo huwboo@163.com
- * @Date: 2026-01-07 14:53:32
- * @LastEditors: wenbo huwboo@163.com
- * @LastEditTime: 2026-01-07 16:42:18
- * @FilePath: /my-webpack/vite/loader/@vue/compiler-sfc.js
- * @Description: 
- */
-
-function miniVueCompiler(source) {
-  // 1. 提取三部分内容 (正则大法)
+function miniVueCompiler(source, filename) {
+  // 1. 提取内容
   const template = source.match(/<template>([\s\S]*?)<\/template>/)[1].trim();
   const script = source.match(/<script>([\s\S]*?)<\/script>/)[1].trim();
-  const style = source.match(/<style>([\s\S]*?)<\/style>/)?.[1].trim() || '';
+  const styleMatch = source.match(/<style\s*(scoped)?\s*>([\s\S]*?)<\/style>/);
+  const isScoped = styleMatch && styleMatch[1] === 'scoped';
+  const style = styleMatch ? styleMatch[2].trim() : '';
 
-  // 2. 改造 Script：把 export default 换成变量定义
-  let scriptJs = script.replace('export default', 'const __script =');
+  // 2. 生成唯一 Hash (基于文件名，确保同一个文件 hash 一致)
+  const hash = `data-v-${Math.random().toString(36).slice(-6)}`;
+  const hashAttr = isScoped ? ` ${hash}` : '';
 
-  // 3. 改造 Template：变成一个返回字符串的函数
-  // 将 {{ key }} 替换为 ${this.key}
-  const htmlWithVars = template.replace(/\{\{(.*?)\}\}/g, (_, key) => `\${this.${key.trim()}}`);
-  
-  // 4. 处理 Style：生成一段 JS，动态把样式插入 head
+  // 3. 改造 Template：给所有标签加上 hash 属性
+  // 正则解释：匹配 <tag 而不匹配 </tag，然后在 tag 后面加上 hash 属性
+  let htmlWithVars = template
+    .replace(/<([a-z1-6]+)(?=[^>]*?)/gi, `<$1${hashAttr}`) // 给标签加属性
+    .replace(/\{\{(.*?)\}\}/g, (_, key) => `\${this.${key.trim()}}`); // 处理变量
+
+  // 4. 改造 Style：给选择器加上属性选择器 [data-v-xxx]
+  let finalStyle = style;
+  if (isScoped) {
+    // 简易正则：匹配选择器并加上 [hash]
+    // 注意：这里只是演示，复杂的嵌套选择器需要真正的 CSS Parser
+    finalStyle = style.replace(/([\.#a-z0-9_-]+)\s*\{/gi, (match, selector) => {
+      return `${selector.trim()}[${hash}] {`;
+    });
+  }
+
+  // 5. 组装逻辑保持不变
   const styleJs = `
     const styleTag = document.createElement('style');
-    styleTag.innerHTML = \`${style}\`;
+    styleTag.setAttribute('id', '${hash}');
+    styleTag.innerHTML = \`${finalStyle}\`;
     document.head.appendChild(styleTag);
   `;
 
-  // 5. 拼装成合法的 ESM
   return `
     ${styleJs}
-    ${scriptJs}
-    
-    // 给组件对象挂载一个静态渲染方法
+    ${script.replace('export default', 'const __script =')}
     __script.render = function() {
-      // 这里的 this 指向组件实例数据
       return \`${htmlWithVars}\`;
     };
-    
     export default __script;
   `;
 }

@@ -2,7 +2,7 @@
  * @Author: wenbo huwboo@163.com
  * @Date: 2026-01-07 14:39:11
  * @LastEditors: wenbo huwboo@163.com
- * @LastEditTime: 2026-01-07 16:39:40
+ * @LastEditTime: 2026-01-07 17:28:33
  * @FilePath: /my-webpack/vite/vite-server.js
  * @Description: 
  */
@@ -57,6 +57,7 @@ const server = http.createServer((req, res) => {
     const p = path.join(__dirname, url);
     const content = fs.readFileSync(p, 'utf-8');
     const scriptCode = miniVueCompiler(content)
+    console.log('🚀: ~ scriptCode:', scriptCode)
     res.writeHead(200, { 'Content-Type': 'application/javascript' });
     // 核心：返回改写后的 vue 代码
     res.end(rewriteImport(scriptCode));
